@@ -40,7 +40,7 @@ foreach ($name in $paths.Keys) {
     $path = $paths[$name]
     if (-not (Test-Path $path)) { continue }
     
-    Get-ChildItem $path -Filter "*.log","*.ldb" -ErrorAction SilentlyContinue | ForEach-Object {
+    Get-ChildItem $path -Include "*.log","*.ldb" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
         $content = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue
         if ($content) {
             $matches = [regex]::Matches($content, $regex)
